@@ -1,0 +1,17 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File with Arguments",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [ "--tar_file", "/dt_bug_info/danny/SonkeSep7-second-crash-logs-2000.01.07-06.45.57.tar.gz", "--log_mode", "min","--start_date", "2000-01-06 23:38:56" , "--end_date", "2000-01-07 07:00:00" ]//, "--start_date", "2024-06-26 11:44:00", "--end_date", "2024-06-26 11:50:00"] //]
+            //"args": [ "--tar_file", "/home/compass/public/tech_support/JsystemRunning_169770-logs-2024.08.22-08.16.12.tar.gz" , "--start_date", "2024-08-22 06:25:00"]//, "--end_date", "2024-07-26 19:12:00" ]
+        }
+    ]
+}

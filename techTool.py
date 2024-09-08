@@ -36,31 +36,31 @@ def extract_tar_to_folder(tar_path: str, output_dir: str):
     except Exception as e:
         print(f"Error extracting tar file: {e}")
 
-def remove_directory(directory_path: str):
+def remove_directory(expand_tree: str):
     """
     Removes a directory and its contents (files and subdirectories).
 
     Args:
-        directory_path (str): Path to the directory to be removed.
+        expand_tree (str): Path to the directory to be removed.
     """
     try:
-        shutil.rmtree(directory_path)
-        #print(f"Directory {directory_path} and its contents removed successfully.")
+        shutil.rmtree(expand_tree)
+        #print(f"Directory {expand_tree} and its contents removed successfully.")
     except Exception as e:
         if "[Errno 16]" in str(e):
             print(f"Error: Device or resource busy. Checking for open files/processes...")
             # List files in the directory
-            files_in_directory = os.listdir(directory_path)
+            files_in_directory = os.listdir(expand_tree)
             for filename in files_in_directory:
-                file_path = os.path.join(directory_path, filename)
+                file_path = os.path.join(expand_tree, filename)
                 try:
                     os.remove(file_path)
                     print(f"File {file_path} removed successfully.")
                 except IsADirectoryError:
                     # If it's a directory, try to remove it directly
                     try:
-                        os.rmdir(directory_path)
-                        print(f"Empty directory {directory_path} removed successfully.")
+                        os.rmdir(expand_tree)
+                        print(f"Empty directory {expand_tree} removed successfully.")
                     except Exception as dir_error:
                         print(f"Error removing directory: {dir_error}")
         else:
@@ -108,10 +108,34 @@ def read_log_file(file_name):
 
 
 
+from collections import OrderedDict
+
+
+# Precompile regex patterns and store them with datetime formats
+TIMESTAMP_FORMATS = OrderedDict([
+    (re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+)"), "%Y-%m-%d %H:%M:%S,%f"),
+    (re.compile(r"^<DEBUG> (\d{1,2}-\w{3}-\d{4})(::\d{2}:\d{2}:\d{2}\.\d+)?$"), "%d-%b-%Y::%H:%M:%S.%f" if "::" in r"\1" else "%d-%b-%Y"),
+    (re.compile(r"^<INFO> (\d{1,2}-\w{3}-\d{4})(::\d{2}:\d{2}:\d{2}\.\d+)?$"), "%d-%b-%Y::%H:%M:%S.%f" if "::" in r"\1" else "%d-%b-%Y"),
+    (re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)"), "%Y-%m-%dT%H:%M:%S.%f"),
+    (re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})"), "%Y-%m-%dT%H:%M:%S"),
+    (re.compile(r"^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})"), "%Y/%m/%d %H:%M:%S"),
+    (re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+);"), "%Y-%m-%d %H:%M:%S.%f"),
+    (re.compile(r"^\|(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\|"), "%Y-%m-%d %H:%M:%S.%f"),
+    (re.compile(r"^(\w{3} \w{3}  ?\d{1,2} \d{2}:\d{2}:\d{2} \d{4}):"), "%a %b %d %H:%M:%S %Y"),
+    (re.compile(r"^(\w{3}  ?\d{1,2} \d{2}:\d{2}:\d{2})"), "%b %d %H:%M:%S"),
+    (re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}\.\d{3})"), "%Y-%m-%d %H:%M:%S,%f.%f"),
+    (re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})"), "%Y-%m-%d %H:%M:%S"),
+    (re.compile(r"^\|(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})"), "%Y-%m-%d %H:%M:%S"),
+    (re.compile(r"^(\w{3} \w{3} \d{1,2} \d{2}:\d{2}:\d{2} \d{4})"), "%a %b %d %H:%M:%S %Y"),
+    # New formats
+    (re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{1,2})"), "%Y-%m-%d %H:%M:%S"),
+    (re.compile(r"^(\w{3} \d{1,2} \d{2}:\d{2}:\d{2})"), "%b %d %H:%M:%S"),
+    (re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})"), "%Y-%m-%dT%H:%M:%S"),
+    (re.compile(r"^<INFO> (\d{1,2}-\w{3}-\d{4}::\d{2}:\d{2}:\d{2}\.\d{3})"), "%d-%b-%Y::%H:%M:%S.%f")
+])
+
 def parse_timestamp(line, TIMESTAMP_FORMATS):
-    for fmt, datetime_format in TIMESTAMP_FORMATS:
-        # Compile a regex pattern for each format
-        pattern = re.compile(fmt)
+    for pattern, datetime_format in TIMESTAMP_FORMATS.items():
         match = pattern.match(line)
         if match:
             try:
@@ -129,43 +153,8 @@ def parse_timestamp(line, TIMESTAMP_FORMATS):
     # If no format matches, return None for both timestamp and message
     return None, None
 
-# Define the timestamp formats using regular expressions and corresponding datetime formats
-TIMESTAMP_FORMATS = [
-    (r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+)", "%Y-%m-%d %H:%M:%S,%f"),
-    (r"^<DEBUG> (\d{1,2}-\w{3}-\d{4}::\d{2}:\d{2}:\d{2}\.\d+)", "%d-%b-%Y::%H:%M:%S.%f"),
-    (r"^<ERROR> (\d{1,2}-\w{3}-\d{4}::\d{2}:\d{2}:\d{2}\.\d+)", "%d-%b-%Y::%H:%M:%S.%f"),
-    (r"^<INFO> (\d{1,2}-\w{3}-\d{4}::\d{2}:\d{2}:\d{2}\.\d+)", "%d-%b-%Y::%H:%M:%S.%f"),
-    (r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+)", "%Y-%m-%dT%H:%M:%S.%f"),
-    (r"^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})", "%Y/%m/%d %H:%M:%S"),
-    (r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+);", "%Y-%m-%d %H:%M:%S.%f"),
-    (r"^\|(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\|", "%Y-%m-%d %H:%M:%S.%f"),
-    (r"^(\w{3} \w{3}  ?\d{1,2} \d{2}:\d{2}:\d{2} \d{4}):", "%a %b %d %H:%M:%S %Y"),
-    (r"^(\w{3}  ?\d{1,2} \d{2}:\d{2}:\d{2})", "%b %d %H:%M:%S"),
-    (r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}\.\d{3})", "%Y-%m-%d %H:%M:%S,%f.%f"),
-    (r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})", "%Y-%m-%d %H:%M:%S"),  # Add this line
-]
-
-
-
-
-
-
-#def preprocess_line(line, fmt):
-#    """
-#    Preprocess the line to handle special characters in the format string.
-#    """
-#    # Remove or replace special characters that may cause issues
-#    if '<' in fmt and '>' in fmt:
-#        line = line.replace('<DEBUG> ', '')
-#        line = line.replace('<ERROR> ', '')
-#        line = line.replace('<INFO> ', '')
-#    if '::' in fmt:
-#        line = line.replace('::', ' ')
-#   if ',' in fmt:
-#        line = line.replace(';', '')
-#    return line
-
-
+def remove_semicolons(message):
+    return message.replace(";", "")
 
 def process_lines(lines, change_hour, file_name):
     """Processes the log lines and adjusts timestamps as needed."""
@@ -192,16 +181,18 @@ def process_lines(lines, change_hour, file_name):
             timestamp = updated_timestamp.strftime("%Y-%m-%d %H:%M:%S.%f") +'*'
 
         base_name = os.path.basename(file_name)
-        if len(base_name) < 12:
-             file_base = base_name.ljust(12, ' ')
+        if len(base_name) < 32:
+             file_base = base_name.ljust(32, ' ')
         else:
-            file_base = base_name[:12]
-            
-        processed_lines.append(f"{timestamp}  {file_base} {message}\n")
+            file_base = base_name[:32]
+
+        clean_message = remove_semicolons(message)
+
+        processed_lines.append(f"{timestamp}  {file_base} {clean_message}\n")
     #break here
     return processed_lines
 
-def save_processed_lines(processed_lines, output_directory, file_name):
+def save_processed_lines(processed_lines, output_path, file_name):
     """Saves the processed lines to the output directory."""
 
     if not processed_lines:
@@ -210,7 +201,7 @@ def save_processed_lines(processed_lines, output_directory, file_name):
 
     try:
         output_file_name = os.path.basename(file_name)
-        output_file_path = os.path.join(output_directory, "WIP", output_file_name)
+        output_file_path = os.path.join(output_path, "WIP", output_file_name)
         os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
         with open(output_file_path, 'w', encoding='utf-8') as output_file:
             output_file.write('\ufeff')  # Write BOM for UTF-8
@@ -220,7 +211,7 @@ def save_processed_lines(processed_lines, output_directory, file_name):
         logging.error(f"An error occurred while saving '{file_name}': {e}")
 
 
-def process_log_file(file_name, change_hour, output_directory):
+def process_log_file(file_name, change_hour, output_path):
     """Main function to process the log file."""
     lines = read_log_file(file_name)
     if not lines:
@@ -228,12 +219,13 @@ def process_log_file(file_name, change_hour, output_directory):
     
     processed_lines = process_lines(lines, change_hour, file_name)
     
-    # Check if all lines start with specified years
-    if any(line.startswith(('2000', '2001', '2135', '2136')) for line in processed_lines):
-        logging.info("   File has timestamp from before 2020 / after 2135")
-        processed_lines = fix_2000(lines)
     
-    save_processed_lines(processed_lines, output_directory, file_name)
+    # Check if all lines start with specified years
+    #if any(line.startswith(('2000', '2001', '2135', '2136')) for line in processed_lines):
+    #    logging.info("   File has timestamp from before 2020 / after 2135")
+    #    processed_lines = fix_2000(lines)
+    
+    save_processed_lines(processed_lines, output_path, file_name)
 
 
 def parse_timestamp_from_line(line):
@@ -255,12 +247,12 @@ def zcat(input_file):
     return output_file
 
 
-def get_all_files(directory_path, last_week_relative=False):
+def get_all_files(expand_tree, last_week_relative=False):
     """
     Recursively retrieves a list of all files in the specified directory and its sub-directories.
     Optionally filters files to include only those modified in the last week relative to the newest file.
     
-    :param directory_path: The path to the directory.
+    :param expand_tree: The path to the directory.
     :param last_week_relative: Boolean flag to filter files modified in the last week relative to the newest file.
     :return: A list of file paths.
     """
@@ -268,7 +260,7 @@ def get_all_files(directory_path, last_week_relative=False):
     latest_mtime = 0
 
     # First pass to find the latest modification time
-    for root, _, filenames in os.walk(directory_path):
+    for root, _, filenames in os.walk(expand_tree):
         for filename in filenames:
             file_path = os.path.join(root, filename)
             mtime = os.path.getmtime(file_path)
@@ -280,7 +272,7 @@ def get_all_files(directory_path, last_week_relative=False):
     threshold_time = latest_mtime - one_week_seconds
 
     # Second pass to collect files based on the threshold time
-    for root, _, filenames in os.walk(directory_path):
+    for root, _, filenames in os.walk(expand_tree):
         for filename in filenames:
             file_path = os.path.join(root, filename)
             if not last_week_relative or os.path.getmtime(file_path) >= threshold_time:
@@ -434,18 +426,70 @@ def filter_log_by_timestamp(input_file, start_date, end_date, output_file):
 
 # Example usage:
 # filter_log_by_timestamp('input.log', '2023-01-01 00:00:00', '2023-01-31 23:59:59', 'output.log')
+
+
 # Filter the files - Assuming all_files and normalized_external_files are defined
-
-
-def filter_files(all_files, external_list_of_files):
+     
+def filter_files(all_files, external_list_of_files ):
     filtered_files = []
     
+
     for file in all_files:
         if os.path.getsize(file) >= 200: # Ignore samll files <200 Bytes
             if not any(part in file for part in external_list_of_files):
                 filtered_files.append(file)
     
     return filtered_files
+
+def filter_files_min(all_files, min_list_of_files):
+    filtered_files = []
+    
+
+    for file in all_files:
+        if os.path.getsize(file) >= 200: # Ignore samll files <200 Bytes
+            if any(part in file for part in min_list_of_files):
+                filtered_files.append(file)
+    
+    return filtered_files
+
+
+
+
+
+def filter_files_by_time(all_files, start_date_str):
+    """
+    Filters a list of files, returning only those modified after the start_date.
+    
+    :param all_files: List of file paths to be checked.
+    :param start_date_str: The start date as a string in the format "YYYY-MM-DD HH:MM:SS".
+    :return: List of files modified after the start_date.
+    """
+    # Parse the start_date from the provided string
+    start_date = datetime.strptime(start_date_str, "%Y-%m-%d %H:%M:%S")
+    
+    filtered_files = []
+    
+    for file_path in all_files:
+        try:
+            # Get the last modified time of the file
+            modification_time = os.path.getmtime(file_path)
+            modification_date = datetime.fromtimestamp(modification_time)
+            
+            # Compare modification date with start_date
+            if modification_date > start_date:
+                filtered_files.append(file_path)
+        except FileNotFoundError:
+            # If file is not found, skip it
+            continue
+        except Exception as e:
+            # Handle other exceptions if needed
+            print(f"An error occurred with file {file_path}: {e}")
+            continue
+    
+    return filtered_files
+
+
+
 
 
 
@@ -468,18 +512,20 @@ def validate_directory(path):
 def main():
     parser = argparse.ArgumentParser(description='Process some parameters.')
     
-    parser.add_argument('--tar_file_path', type=validate_tar_file, default='/home/danny/ws/techTool/FIBMAN_down-logs-2024.05.05-18.06.28.tar.gz',
-                        help='Path to the .tar.gz file')
-    parser.add_argument('--output_directory', type=validate_directory, default='/home/danny/ws/techTool/FIBMAN_down',
-                        help='Path to the output directory')
-    parser.add_argument('--directory_path', type=validate_directory, default='/home/danny/ws/techTool/FIBMAN_down',
-                        help='Path to the directory')
+    parser.add_argument('--tar_file', type=validate_tar_file, default='/dt_bug_info/EM-5521/TC03_QosDSCP2EXPmarkingSubinterface-logs-2024.05.12-06.37.39.tar.gz',
+                        help='Full path to the .tar.gz file')
+    parser.add_argument('--output_path', type=validate_directory, default='/dt_bug_info/danny1/techTool',
+                        help='Full path to the output directory')
+    parser.add_argument('--expand_tree', type=validate_directory, default='/dt_bug_info/danny1/techTool',
+                        help='Full path to expand the logs from')
     parser.add_argument('--change_hour', type=int, default=3,
                         help='Hour adjustment value')
-    parser.add_argument('--start_date', type=valid_date, default="2024-01-01 00:00:00",
+    parser.add_argument('--start_date', type=valid_date, default="1999-01-01 00:00:00",
                         help='Start date in the format YYYY-MM-DD HH:MM:SS')
-    parser.add_argument('--end_date', type=valid_date, default="2024-12-31 23:59:59",
+    parser.add_argument('--end_date', type=valid_date, default="2222-12-31 23:59:59",
                         help='End date in the format YYYY-MM-DD HH:MM:SS')
+    parser.add_argument('--log_mode', type=str, default='max',
+                        help='which file list to use')
 
     args = parser.parse_args()
     
@@ -488,37 +534,33 @@ def main():
     print(f"\n\n")
     logging.info(f"Start Execution \n")
 
-    print(f"tar_file_path: {args.tar_file_path}")
-    print(f"output_directory: {args.output_directory}")
-    print(f"directory_path: {args.directory_path}")
+    print(f"tar_file: {args.tar_file}")
+    print(f"output_path: {args.output_path}")
+    print(f"expand_tree: {args.expand_tree}")
     print(f"change_hour: {args.change_hour}")
     print(f"start_date: {args.start_date}")
     print(f"end_date: {args.end_date}")
-
-
+    print(f"log_mode: {args.log_mode}")
 
 # Define the execution paramters
 # tar_file_path = path of tech support log file .tar.gz
-# output_directory = path for output
-# directory_path = from what path and down to open the logs
+# output_path = path to send the output         - os.path.join(os.path.dirname({args.tar_file}), "techTool")
+# expand_tree = from what path and down to open the logs
 # change_hour = 3  # Change this to the desired hour adjustment
 # start_date = start the log from "2024-05-05T14:48:37"
 # end_date = "2024-05-05T17:54:50"
 # external_list_of_files = List of file/path (in string) to leave out from the collected logs 
+# log_mode = max - take all th log. Min - use a prepare listed
 
 
 
-    tar_file_path = str(args.tar_file_path)
-    output_directory = str(args.output_directory)
-    directory_path = str(args.directory_path)
-
-    #print("tar_file_path:", tar_file_path)
-    #print("output_directory:", output_directory)
-    #print("directory_path:", directory_path)
-
+    tar_file = str(args.tar_file)
+    output_path = str(args.output_path)
+    expand_tree = str(args.expand_tree)
     change_hour = str(args.change_hour)  # Change this to the desired hour adjustment
     start_date = str(args.start_date)
     end_date = str(args.end_date)
+    log_mode = str(args.log_mode)
 
     external_list_of_files = [
         "/vbox/cpm_image/root/var/log/exaware.event",
@@ -528,7 +570,7 @@ def main():
         "/vbox/cpm_image/root/var/log/trace/stats_file.csv",
         "/vbox/cpm_image/root/var/log/trace/sysi_output.trace",
         "root/var/log/trace/sysa_output.trace",
-        "/vbox/cpm_image/root/var/log/trace/sys_profile",
+        "sys_profile",
         "/vbox/cpm_image/root/var/log/boot*",
         "root/var/log/sysstat/",
         "var/log/mms_stats/",
@@ -544,39 +586,67 @@ def main():
         "onl_sys-info.txt",
         "/vbox/cpm_image/root/var/log/card-type/cardtype_cdb_updater-minilog.txt",
         "dmesg",
-        "/var/log/monit.log"
+        "/var/log/monit.log",
+        "bcmrm_ingress_sw_counters.bin",
+        "/log/bfd/bfd_mo-minilog.txt",
+        "/bcmrm_onl_cmd.log",
+        "rest_api_server.log",
+        "/bootstrap.log",
+        "/var/log/fsck",
+        "devel"
+    # Add more file names as needed
+    ]
+
+    min_list_of_files = [
+        "/vbox/cpm_image/root/var/log/trace/bgpd",
+        "/vbox/cpm_image/root/var/log/trace/fib",
+        "/vbox/cpm_image/root/var/log/trace/nsm",
+        "/vbox/cpm_image/root/var/log/trace/arp",
+        "/vbox/cpm_image/root/var/log/trace/debug_arp",
+        "/var/log/bcm",
     # Add more file names as needed
     ]
 
     # Deleting previous files
-    logging.info(f"Delete previous files \n\n\n")
-    file_name = remove_directory(output_directory)
+    print(f"\n")
+    logging.info(f"Delete previous files\n")
+    file_name = remove_directory(output_path)
 
     # Extracting tar file
-    logging.info(f"Extracting tar file \n\n\n")
-    extract_tar_to_folder(tar_file_path, output_directory)
+    logging.info(f"Extracting tar file\n")
+    extract_tar_to_folder(tar_file, output_path)
 
-    # Specify the working path WIP under the output_directory
+    # Specify the working path WIP under the output_path
     new_subdirectory = "WIP"
-    working_path = os.path.join(output_directory, new_subdirectory)
+    working_path = os.path.join(output_path, new_subdirectory)
     try:
         os.makedirs(working_path, exist_ok=True)
         print(f"New working path created at: {working_path}")
     except OSError as e:
         print(f"Error creating working path: {e}")
 
-    # Get all files in a directory_path - all / last_week 
-    all_files = get_all_files(directory_path , last_week_relative=True)
-    filtered_files = filter_files(all_files, external_list_of_files)
-    logging.info(f"  \n\n\n List files founded in path {directory_path}\n ")
-    #for file in filtered_files:
-    #    print(file)
-    #    print(f"\n")
+    # Get all files in a expand_tree - all / last_week 
+    all_files = get_all_files(expand_tree , last_week_relative=False)
+    filtered_files_byList = filter_files(all_files, external_list_of_files)
+    if log_mode == "min":  
+      filtered_files_byList = filter_files_min(filtered_files_byList, min_list_of_files)  
+
+    print(f"\nFilter filed by list")
+    for index, file in enumerate(filtered_files_byList, start=1):
+        print(f"{index}: {file}")
+        
+    
+    print(f"\nFilter filed by date")
+    filtered_files = filter_files_by_time(filtered_files_byList, start_date)
+    logging.info(f"List files founded in path {expand_tree} after {start_date}\n ")
+    for index, file in enumerate(filtered_files, start=1):
+        print(f"{index}: {file}")
+        
 
     for i, file in enumerate(filtered_files):
         # print(f"     {file}")
-        # Check if the file ends with ".gz"
-        if file.endswith(".gz"):
+        # Check if the file contain with ".gz"
+        if ".gz" in file:
             new_file = zcat(file)
             filtered_files[i] = new_file
 
@@ -593,7 +663,10 @@ def main():
         if file is None:
             filtered_files.remove(file)
         else:
-            process_log_file(file, change_hour, output_directory)
+            print(f"Working on {file}\n")
+            process_log_file(file, change_hour, output_path)
+            filter_log_by_timestamp(file, start_date, end_date, file+".trimmed")
+            filtered_files.remove(file)
             #print_file_content(file)
 
 ### break here
@@ -607,7 +680,7 @@ def main():
 
     # Write combined contents to a new file
     output_combine_file = 'combined_log.txt'
-    output_combine_file = Path(output_directory) / f"{output_combine_file}"
+    output_combine_file = Path(output_path) / f"{output_combine_file}"
 
     with open( output_combine_file , 'w') as output_file:
         output_file.write("\n".join(combined_contents))
@@ -615,15 +688,15 @@ def main():
 
     logging.info(f"Create Sorted file \n")
     #sort file by timetamp and save file 
-    input_file = os.path.join(output_directory, 'combined_log.txt')  # Replace with your actual input file
-    output_file = os.path.join(output_directory,'sorted_log.txt')
+    input_file = os.path.join(output_path, 'combined_log.txt')  # Replace with your actual input file
+    output_file = os.path.join(output_path,'sorted_log.txt')
     reorder_lines(input_file, output_file)
     print(f"    Sorted list is written to {output_file}.\n")
 
     logging.info(f"Trimed list is written to {output_file}-Starting from {start_date} & ends by {end_date}.\n")
     #Trim file by start_date, end_date
-    input_file = os.path.join(output_directory,'sorted_log.txt')
-    output_file = os.path.join(output_directory,'Trim_sorted_log.txt')
+    input_file = os.path.join(output_path,'sorted_log.txt')
+    output_file = os.path.join(output_path,'Trim_sorted_log.txt')
     filter_log_by_timestamp(input_file, start_date, end_date, output_file)
 
     logging.info(f"END of Execution \n\n\n")
@@ -635,11 +708,11 @@ if __name__ == "__main__":
 
 
 #Can work also as external script:
-# python3.8 techTool.py --tar_file_path "/home/danny/ws/techTool/FIBMAN_down-logs-2024.05.05-18.06.28.tar.gz" --output_directory "/home/danny/ws/techTool/FIBMAN_down" --directory_path "/home/danny/ws/techTool/FIBMAN_down" --change_hour 5 --start_date "2024-05-05 13:00:00" --end_date "2024-05-05 14:00:00"
+# python3.8 techTool.py --tar_file "/home/danny/ws/techTool/FIBMAN_down-logs-2024.05.05-18.06.28.tar.gz" --output_path "/home/danny/ws/techTool/FIBMAN_down" --expand_tree "/home/danny/ws/techTool/FIBMAN_down" --change_hour 5 --start_date "2024-05-05 13:00:00" --end_date "2024-05-05 14:00:00"
 
 
 # python3.8 techTool.py --start_date "2024-05-05 13:13:00" --end_date "2024-05-05 14:28:00"
-# python script_name.py --tar_file_path "/path/to/your/tar_file.tar.gz" --output_directory "/path/to/output" --directory_path "/path/to/directory" --change_hour 5 --start_date "2024-05-05 12:00:00" --end_date "2024-05-05 13:00:00"
+# python script_name.py --tar_file "/path/to/your/tar_file.tar.gz" --output_path "/path/to/output" --expand_tree "/path/to/directory" --change_hour 5 --start_date "2024-05-05 12:00:00" --end_date "2024-05-05 13:00:00"
 
 # need to handle:
 # time parsing :  time zone , 2000 
