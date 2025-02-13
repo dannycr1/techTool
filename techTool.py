@@ -18,7 +18,7 @@ import argparse
 
 
 def extract_tar_to_folder(tar_path: str, output_dir: str):
-    """
+    """  
     Extracts the contents of a tar file to a new folder with the same name as the tar file.
 
     Args:
@@ -78,7 +78,7 @@ def print_file_content(file_name):
 
 def read_log_file(file_name):
     """Reads the log file and returns its lines."""
-    encodings = ['utf-8', 'latin-1', 'iso-8859-1']
+    encodings = ['utf-8', 'latin-1', 'iso-8859-1' , "ascii" ]
     
     for encoding in encodings:
         try:
@@ -156,41 +156,62 @@ def parse_timestamp(line, TIMESTAMP_FORMATS):
 def remove_semicolons(message):
     return message.replace(";", "")
 
+# Declare last_valid_timestamp globally
+from datetime import datetime, timedelta
+
 def process_lines(lines, change_hour, file_name):
     """Processes the log lines and adjusts timestamps as needed."""
-    last_timestamp = None
     processed_lines = []
-    
     current_year = datetime.now().year
+    last_valid_timestamp = datetime.now()
+  
+   # Initialize last_valid_timestamp if it's None
+   # if last_valid_timestamp is None:
+    #    last_valid_timestamp = datetime.now()
 
     for line in lines:
         line = line.strip()
         if not line:
             continue  # Skip empty lines
 
-        timestamp, message = parse_timestamp(line , TIMESTAMP_FORMATS)
+        timestamp, message = parse_timestamp(line, TIMESTAMP_FORMATS)
+        if not message:
+            message = line.strip()
+                
         if timestamp is None:
-            continue
-
-        timestamp_tmp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f")
-        year = timestamp_tmp.year        
-        if year < 2000:
-            # Construct a new datetime object with the current year
-            updated_timestamp = timestamp_tmp.replace(year=current_year)
-            # Convert the updated timestamp back to string format
-            timestamp = updated_timestamp.strftime("%Y-%m-%d %H:%M:%S.%f") +'*'
-
-        base_name = os.path.basename(file_name)
-        if len(base_name) < 32:
-             file_base = base_name.ljust(32, ' ')
+            # Add a small increment to the last valid timestamp
+            last_valid_timestamp += timedelta(seconds=0.000001)
+            timestamp = last_valid_timestamp.strftime("%Y-%m-%d %H:%M:%S.%f") + '+'
         else:
-            file_base = base_name[:32]
+            last_valid_timestamp = timestamp  # Update the last valid timestamp
+        
+        # Process the timestamp for the year if needed
+        timestamp_tmp = datetime.strptime(timestamp[:-1], "%Y-%m-%d %H:%M:%S.%f")
+        year = timestamp_tmp.year
+        
+        if year < 2000:
+            # Replace the year with the current year
+            updated_timestamp = timestamp_tmp.replace(year=current_year)
+            timestamp = updated_timestamp.strftime("%Y-%m-%d %H:%M:%S.%f") + '*'
+            last_valid_timestamp = updated_timestamp  # Update after the year correction
+        else:
+            last_valid_timestamp = timestamp_tmp  # Keep the valid timestamp
 
-        clean_message = remove_semicolons(message)
+        # Prepare the filename formatting
+        base_name = os.path.basename(file_name)
+        file_base = base_name.ljust(35, ' ') if len(base_name) < 35 else base_name[:35]
 
-        processed_lines.append(f"{timestamp}  {file_base} {clean_message}\n")
-    #break here
+        # Clean the message by removing semicolons if present
+        if message is not None:
+            clean_message = remove_semicolons(message)
+            # Add the processed line to the output list
+            processed_lines.append(f"{timestamp} {file_base} {clean_message}\n")
+        else:
+             last_valid_timestamp = last_valid_timestamp   
+    
     return processed_lines
+
+
 
 def save_processed_lines(processed_lines, output_path, file_name):
     """Saves the processed lines to the output directory."""
@@ -217,7 +238,7 @@ def process_log_file(file_name, change_hour, output_path):
     if not lines:
         return
     
-    processed_lines = process_lines(lines, change_hour, file_name)
+    processed_lines = process_lines(lines, change_hour, file_name )
     
     
     # Check if all lines start with specified years
@@ -512,7 +533,7 @@ def validate_directory(path):
 def main():
     parser = argparse.ArgumentParser(description='Process some parameters.')
     
-    parser.add_argument('--tar_file', type=validate_tar_file, default='/dt_bug_info/EM-5521/TC03_QosDSCP2EXPmarkingSubinterface-logs-2024.05.12-06.37.39.tar.gz',
+    parser.add_argument('--tar_file', type=validate_tar_file, default='/dt_bug_info/EM-6743/NO_LC-logs-2000.01.01-01.52.27.tar.gz',
                         help='Full path to the .tar.gz file')
     parser.add_argument('--output_path', type=validate_directory, default='/dt_bug_info/danny1/techTool',
                         help='Full path to the output directory')
@@ -533,6 +554,10 @@ def main():
 
     print(f"\n\n")
     logging.info(f"Start Execution \n")
+    # Get the current date and time
+    start_time = datetime.now().strftime("%H:%M:%S")
+    # Print to console (or log file)
+    print(f"Start Time: {start_time}")
 
     print(f"tar_file: {args.tar_file}")
     print(f"output_path: {args.output_path}")
@@ -659,15 +684,21 @@ def main():
     print(f"\n")
     logging.info(f"Start processing the filtered logs\n\n")
     filtered_files_copy = filtered_files.copy()  # Create a copy to iterate over while modifying original list
+    count=0
     for file in filtered_files_copy:
         if file is None:
             filtered_files.remove(file)
         else:
-            print(f"Working on {file}\n")
+            # Get the current date and time
+            current_time = datetime.now().strftime("%H:%M:%S")
+
+            # Print to console (or log file)
+            print(f"\n{count}/{index} {current_time} Working on {file}\n")
+            count = count+1
             process_log_file(file, change_hour, output_path)
             filter_log_by_timestamp(file, start_date, end_date, file+".trimmed")
             filtered_files.remove(file)
-            #print_file_content(file)
+            # print_file_content(file)  # should be comment
 
 ### break here
 
@@ -700,6 +731,13 @@ def main():
     filter_log_by_timestamp(input_file, start_date, end_date, output_file)
 
     logging.info(f"END of Execution \n\n\n")
+    # Get the current date and time
+    current_time = datetime.now().strftime("%H:%M:%S")
+
+    # Print to console (or log file)
+    print(f"Start Time: {start_time}")
+    print(f"End Time:   {current_time}")
+    
 #================================================================================================================
 
 if __name__ == "__main__":
